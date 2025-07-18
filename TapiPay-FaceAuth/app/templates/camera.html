@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Face Scanner</title>
+</head>
+<body>
+  <h2>📷 Scan Your Face</h2>
+  <video id="video" width="320" height="240" autoplay></video>
+  <br>
+  <button onclick="capture()">📤 Upload Face</button>
+  <p id="result"></p>
+
+  <script>
+    const video = document.getElementById('video');
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; });
+
+    function capture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 320;
+      canvas.height = 240;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append('file', blob, 'face.jpg');
+
+        fetch('/upload-face/', {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('result').innerText =
+            `Result: ${data.name} (${data.confidence}%)`;
+        });
+      }, 'image/jpeg');
+    }
+  </script>
+</body>
+</html>
