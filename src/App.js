@@ -29,17 +29,17 @@ const TapiPayMobileMVP = () => {
       name: "John Doe",
       balance: 2500.75,
       accountNumber: "**** 1234",
-      bank: "maybank",
+      bank: "grabpay",
       securityKey: "ABCD123",
     });
 
-    // Credit-based deposit system state
+    // Simplified offline system state (no deposits)
     const [offlineDepositSystem, setOfflineDepositSystem] = useState({
       isActive: false,
       creditScore: 850,
-      creditRatio: "1:9", // 1 part deposit : 9 parts credit
-      depositRate: 10.0, // 10% deposit rate
-      totalDeposits: 0,
+      creditRatio: "1:9", // Kept for compatibility
+      depositRate: 0, // No deposit rate
+      totalDeposits: 0, // No deposits
       availableBalance: 0,
       lockedAmount: 0,
       activatedTimestamp: null,
@@ -66,6 +66,12 @@ const TapiPayMobileMVP = () => {
     const [scannedData, setScannedData] = useState(null);
     const [copySuccess, setCopySuccess] = useState(false);
     const [cameraActive, setCameraActive] = useState(false);
+    const [isQrScanned, setIsQrScanned] = useState(false);
+
+    // Signature page state (offline only)
+    const [signatureData, setSignatureData] = useState(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [signatureComplete, setSignatureComplete] = useState(false);
 
     console.log("✅ State initialization successful");
 
@@ -93,20 +99,16 @@ const TapiPayMobileMVP = () => {
       getBehavioralSummary = () => ({ keystrokeCount: 0, touchCount: 0 });
     }
 
-    // Credit-based deposit calculations
-    const calculateCreditDeposit = (balance) => {
+    // Simplified offline balance calculations (no deposits)
+    const calculateOfflineBalance = (balance) => {
       const lockedAmount = balance > 200 ? 200 : balance;
-      const depositRate = 10.0; // 10% deposit rate
-      const totalDeposits = lockedAmount * (depositRate / 100);
-      const availableBalance = lockedAmount - totalDeposits;
-      
+      const availableBalance = lockedAmount; // Full locked amount available
+
       return {
         lockedAmount,
-        depositRate,
-        totalDeposits,
         availableBalance,
         creditScore: 850,
-        creditRatio: "1:9"
+        creditRatio: "1:9",
       };
     };
 
@@ -162,6 +164,8 @@ const TapiPayMobileMVP = () => {
         setPaymentFormRecipient(parsedData.name);
         setPaymentFormAccountNumber(parsedData.securityKey);
         setPaymentFormBank(parsedData.bank);
+        // Mark fields as QR scanned (non-editable)
+        setIsQrScanned(true);
         // Close scanner and return to transfer form
         setShowQrScanner(false);
         setCameraActive(false);
@@ -185,110 +189,89 @@ const TapiPayMobileMVP = () => {
       return 1; // Every payment uses exactly 1 token
     };
 
-    // Security deposit calculation (50% of transfer amount for ≥RM100)
-    // Calculate 10% deposit for all payments
+    // No security deposit needed - removed deposit logic
     const calculateSecurityDeposit = useCallback((paymentAmount) => {
-      return paymentAmount * 0.1; // 10% deposit for all payments
+      return 0; // No deposits required
     }, []);
 
-    // Calculate total cost for offline payment (simplified to 10% deposit only)
-    const calculateTotalCost = useCallback(
-      (paymentAmount) => {
-        const depositRequired = paymentAmount * 0.1; // 10% deposit for all offline payments
-        const totalRequired = paymentAmount + depositRequired;
+    // Calculate total cost for offline payment (no deposits)
+    const calculateTotalCost = useCallback((paymentAmount) => {
+      const totalRequired = paymentAmount; // Only payment amount, no deposits
 
-        return {
-          paymentAmount,
-          securityDeposit: 0, // No security deposit
-          depositRequired,
-          totalRequired,
-          showTotal: true, // Always show total
-          creditScore: 850,
-          creditRatio: "1:9",
-          depositRate: 10.0
-        };
-      },
-      []
-    );
+      return {
+        paymentAmount,
+        securityDeposit: 0, // No security deposit
+        depositRequired: 0, // No deposit required
+        totalRequired,
+        showTotal: true, // Always show total
+        creditScore: 850,
+        creditRatio: "1:9",
+        depositRate: 0, // No deposit rate
+      };
+    }, []);
 
-    // Initialize credit-based deposit system
-    const initializeDepositSystem = () => {
-      const creditData = calculateCreditDeposit(userProfile.balance);
+    // Initialize simplified offline system (no deposits)
+    const initializeOfflineSystem = () => {
+      const balanceData = calculateOfflineBalance(userProfile.balance);
       setOfflineDepositSystem({
         isActive: true,
-        creditScore: creditData.creditScore,
-        creditRatio: creditData.creditRatio,
-        depositRate: creditData.depositRate,
-        totalDeposits: creditData.totalDeposits,
-        availableBalance: creditData.availableBalance,
-        lockedAmount: creditData.lockedAmount,
-        activatedTimestamp: new Date().toISOString(),
+        creditScore: 850,
+        creditRatio: "1:9",
+        depositRate: 0, // No deposit rate
+        totalDeposits: 0, // No deposits
+        availableBalance: balanceData.availableBalance,
+        lockedAmount: balanceData.lockedAmount,
+        activatedTimestamp: Date.now(),
       });
+      console.log("💳 Offline system initialized (no deposits)", balanceData);
     };
 
-    // Clear deposit system when going online
-    const clearDepositSystem = () => {
+    // Clear offline system when going online
+    const clearOfflineSystem = () => {
       setOfflineDepositSystem({
         isActive: false,
         creditScore: 850,
         creditRatio: "1:9",
-        depositRate: 10.0,
-        totalDeposits: 0,
+        depositRate: 0, // No deposit rate
+        totalDeposits: 0, // No deposits
         availableBalance: 0,
         lockedAmount: 0,
         activatedTimestamp: null,
       });
+      console.log("🌐 Offline system cleared (no deposits)");
     };
 
     // Monitor online status
     useEffect(() => {
       const handleOnline = () => {
-        console.log("🌐 Connection restored - returning deposits");
-
-        // Return deposits to user balance before clearing deposit system
-        if (offlineDepositSystem.totalDeposits > 0) {
-          const depositsToReturn = offlineDepositSystem.totalDeposits;
-
-          setUserProfile((prev) => ({
-            ...prev,
-            balance: prev.balance + depositsToReturn,
-          }));
-
-          console.log(
-            `💰 Returned RM${depositsToReturn.toFixed(2)} deposits`
-          );
-        }
+        console.log("🌐 Connection restored - no deposits to return");
 
         setIsOnline(true);
         setOfflineMode(false);
-        clearDepositSystem();
+        clearOfflineSystem();
       };
       const handleOffline = () => {
         setIsOnline(false);
         setOfflineMode(true);
-        // Only initialize deposit system if not already active
+        // Only initialize offline system if not already active
         if (!offlineDepositSystem.isActive) {
-          initializeDepositSystem();
+          initializeOfflineSystem();
         }
       };
 
       window.addEventListener("online", handleOnline);
       window.addEventListener("offline", handleOffline);
 
-      // Initialize deposit system if already offline and not already active
+      // Initialize offline system if already offline and not already active
       if (!navigator.onLine && !offlineDepositSystem.isActive) {
-        initializeDepositSystem();
+        initializeOfflineSystem();
       }
 
       return () => {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
       };
-    }, [
-      userProfile.balance,
-      offlineDepositSystem.isActive,
-      offlineDepositSystem.totalDeposits,
-    ]);
+    }, [userProfile.balance, offlineDepositSystem.isActive]);
 
     // Add global event listeners for behavioral data collection
     useEffect(() => {
@@ -332,20 +315,22 @@ const TapiPayMobileMVP = () => {
       };
     }, [recordKeystroke, recordTouch]);
 
-    // Process credit-based offline payment with deposits
+    // Process simplified offline payment (no deposits)
     const processOfflinePayment = useCallback(
       (amount) => {
         const paymentAmount = parseFloat(amount);
         const costBreakdown = calculateTotalCost(paymentAmount);
 
         if (!offlineDepositSystem.isActive) {
-          throw new Error("Deposit system not initialized");
+          throw new Error("Offline system not initialized");
         }
 
         // Validate sufficient available balance
-        if (costBreakdown.totalRequired > offlineDepositSystem.availableBalance) {
+        if (
+          costBreakdown.totalRequired > offlineDepositSystem.availableBalance
+        ) {
           throw new Error(
-            `Total required RM${costBreakdown.totalRequired.toFixed(
+            `Payment amount RM${costBreakdown.totalRequired.toFixed(
               2
             )} exceeds available balance of RM${offlineDepositSystem.availableBalance.toFixed(
               2
@@ -354,17 +339,17 @@ const TapiPayMobileMVP = () => {
         }
 
         // Calculate the results before state updates
-        const balanceAfter = offlineDepositSystem.availableBalance - costBreakdown.totalRequired;
-        const depositsAfter = offlineDepositSystem.totalDeposits + costBreakdown.depositRequired;
+        const balanceAfter =
+          offlineDepositSystem.availableBalance - costBreakdown.totalRequired;
 
-        // Process the payment - deduct from available balance and add to deposits
+        // Process the payment - deduct from available balance only
         setOfflineDepositSystem((prev) => ({
           ...prev,
           availableBalance: prev.availableBalance - costBreakdown.totalRequired,
-          totalDeposits: prev.totalDeposits + costBreakdown.depositRequired,
+          // No deposit changes - totalDeposits remains 0
         }));
 
-        // Update user balance (deduct total required amount)
+        // Update user balance (deduct payment amount only)
         setUserProfile((prev) => ({
           ...prev,
           balance: prev.balance - costBreakdown.totalRequired,
@@ -372,17 +357,17 @@ const TapiPayMobileMVP = () => {
 
         return {
           success: true,
-          transactionId: `DEP_${Date.now()}`,
+          transactionId: `PAY_${Date.now()}`,
           paymentAmount,
-          securityDeposit: costBreakdown.securityDeposit,
-          depositRequired: costBreakdown.depositRequired,
+          securityDeposit: 0, // No security deposit
+          depositRequired: 0, // No deposit required
           totalCost: costBreakdown.totalRequired,
           showTotal: costBreakdown.showTotal,
           remainingBalance: balanceAfter,
-          totalDeposits: depositsAfter,
+          totalDeposits: 0, // No deposits
           creditScore: costBreakdown.creditScore,
           creditRatio: costBreakdown.creditRatio,
-          depositRate: costBreakdown.depositRate,
+          depositRate: 0, // No deposit rate
         };
       },
       [offlineDepositSystem, calculateTotalCost]
@@ -397,7 +382,7 @@ const TapiPayMobileMVP = () => {
         if (paymentAmount && !paymentProcessedRef.current) {
           try {
             paymentProcessedRef.current = true; // Mark as processed
-            
+
             if (offlineMode) {
               // Process offline payment
               const result = processOfflinePayment(parseFloat(paymentAmount));
@@ -409,27 +394,27 @@ const TapiPayMobileMVP = () => {
             } else {
               // Process online payment - deduct from balance
               const amount = parseFloat(paymentAmount);
-              
+
               // Check if sufficient balance
               if (userProfile.balance >= amount) {
                 setUserProfile((prev) => ({
                   ...prev,
                   balance: prev.balance - amount,
                 }));
-                
+
                 // Set result for success screen
                 setPaymentResult({
                   success: true,
                   transactionId: `TXN_${Date.now()}`,
                   paymentAmount: amount,
-                  method: 'online',
+                  method: "online",
                   timestamp: new Date().toISOString(),
-                  remainingBalance: userProfile.balance - amount
+                  remainingBalance: userProfile.balance - amount,
                 });
-                
+
                 console.log("Online payment processed:", {
                   amount,
-                  newBalance: userProfile.balance - amount
+                  newBalance: userProfile.balance - amount,
                 });
               } else {
                 throw new Error("Insufficient balance for online payment");
@@ -445,9 +430,24 @@ const TapiPayMobileMVP = () => {
         // Send behavioral data after successful auth
         await sendBehavioralData();
 
-        setCurrentStep("success");
+        // Navigate to signature page if offline, otherwise go to success
+        if (offlineMode) {
+          // Clear signature for fresh signature on each payment
+          setSignatureData(null);
+          setSignatureComplete(false);
+          setIsDrawing(false);
+          setCurrentStep("signature");
+        } else {
+          setCurrentStep("success");
+        }
       },
-      [offlineMode, paymentAmount, processOfflinePayment, sendBehavioralData, userProfile.balance]
+      [
+        offlineMode,
+        paymentAmount,
+        processOfflinePayment,
+        sendBehavioralData,
+        userProfile.balance,
+      ]
     );
 
     // Handle logout
@@ -466,11 +466,53 @@ const TapiPayMobileMVP = () => {
       setPaymentResult(null);
       paymentProcessedRef.current = false;
 
-      clearDepositSystem();
+      // Reset signature state
+      setSignatureData(null);
+      setIsDrawing(false);
+      setSignatureComplete(false);
+
+      clearOfflineSystem();
       setCurrentStep("welcome");
     };
 
-    // Enhanced validation for credit-based offline payments with deposits
+    // Signature page functions (offline only)
+    const handleSignatureStart = () => {
+      setIsDrawing(true);
+      setSignatureComplete(false);
+    };
+
+    const handleSignatureEnd = () => {
+      setIsDrawing(false);
+    };
+
+    const handleSignatureDraw = (event) => {
+      if (!isDrawing) return;
+
+      // Simple signature tracking - in a real app, you'd capture actual drawing data
+      const rect = event.target.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      setSignatureData((prev) => {
+        const newData = prev || [];
+        return [...newData, { x, y, timestamp: Date.now() }];
+      });
+    };
+
+    const clearSignature = () => {
+      setSignatureData(null);
+      setSignatureComplete(false);
+    };
+
+    const completeSignature = () => {
+      if (signatureData && signatureData.length > 10) {
+        // Minimum signature requirement
+        setSignatureComplete(true);
+        setCurrentStep("success");
+      }
+    };
+
+    // Enhanced validation for simplified offline payments (no deposits)
     const validateOfflinePayment = useCallback(
       (amount) => {
         const paymentAmount = parseFloat(amount);
@@ -484,16 +526,18 @@ const TapiPayMobileMVP = () => {
         }
 
         if (!offlineDepositSystem.isActive) {
-          return { valid: false, error: "Deposit system not available" };
+          return { valid: false, error: "Offline system not available" };
         }
 
         const costBreakdown = calculateTotalCost(paymentAmount);
 
-        // Check if sufficient balance is available
-        if (costBreakdown.totalRequired > offlineDepositSystem.availableBalance) {
+        // Check if sufficient balance is available (no deposits)
+        if (
+          costBreakdown.totalRequired > offlineDepositSystem.availableBalance
+        ) {
           return {
             valid: false,
-            error: `Total required RM${costBreakdown.totalRequired.toFixed(
+            error: `Payment amount RM${costBreakdown.totalRequired.toFixed(
               2
             )} exceeds available balance of RM${offlineDepositSystem.availableBalance.toFixed(
               2
@@ -557,9 +601,8 @@ const TapiPayMobileMVP = () => {
             <div className="mb-8">
               <h2 className="text-xl font-bold mb-3">Future-Proof Payments</h2>
               <p className="text-blue-100 text-sm leading-relaxed px-4">
-                Experience quantum-ready authentication with AI-powered
-                behavioral analysis and facial recognition. Multiple layers,
-                infinite protection.
+                Experience authentication with AI-powered behavioral analysis
+                and facial recognition. Multiple layers, infinite protection.
               </p>
             </div>
 
@@ -629,16 +672,31 @@ const TapiPayMobileMVP = () => {
           <div className="space-y-4 pb-8">
             <button
               onClick={() => {
-                // Reset payment processing state for new transaction
-                setPaymentResult(null);
-                paymentProcessedRef.current = false;
+                // Clear payment form when starting new transfer
+                setPaymentFormAmount("");
+                setPaymentFormRecipient("");
+                setPaymentFormAccountNumber("");
+                setPaymentFormBank("");
+                setPaymentFormReference("");
+                setPaymentError("");
+                setIsProcessingPayment(false);
+
+                // Clear signature data for fresh signature
+                setSignatureData(null);
+                setSignatureComplete(false);
+                setIsDrawing(false);
+
+                // Reset QR scanned state for new transfer
+                setIsQrScanned(false);
+                setScannedData(null);
+
                 setCurrentStep("transfer");
               }}
               className="w-full group relative bg-white text-black py-4 rounded-2xl text-lg font-bold transform transition-all duration-300 hover:scale-105 active:scale-95 shadow-2xl border-2 border-gray-200 hover:border-gray-300"
             >
               <div className="flex items-center justify-center">
                 <CreditCard className="w-5 h-5 mr-3 group-hover:animate-pulse" />
-                Make Bank Transfer
+                Make Transfer
                 <Shield className="w-4 h-4 ml-3 group-hover:animate-spin" />
               </div>
             </button>
@@ -706,7 +764,7 @@ const TapiPayMobileMVP = () => {
         }
 
         if (!paymentFormBank) {
-          setPaymentError("Please select a bank");
+          setPaymentError("Please select an e-wallet");
           setIsProcessingPayment(false);
           return;
         }
@@ -736,7 +794,7 @@ const TapiPayMobileMVP = () => {
       }
     };
 
-    // Render bank transaction interface
+    // Render e-wallet transaction interface
     const renderBankTransactionInterface = () => {
       return (
         <div className="w-full h-full relative bg-gradient-to-br from-blue-900 via-purple-900 to-green-900">
@@ -762,7 +820,7 @@ const TapiPayMobileMVP = () => {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center">
                 <Shield className="w-6 h-6 text-white mr-2" />
-                <h2 className="text-lg font-bold text-white">Bank Transfer</h2>
+                <h2 className="text-lg font-bold text-white"> Transfer</h2>
               </div>
               <button
                 onClick={() => setCurrentStep("welcome")}
@@ -801,7 +859,6 @@ const TapiPayMobileMVP = () => {
                   <div className="text-white/60 text-xs">
                     {userProfile.accountNumber}
                   </div>
-
                 </div>
               </div>
 
@@ -809,20 +866,35 @@ const TapiPayMobileMVP = () => {
               <div className="space-y-4 mb-6">
                 <div>
                   <label className="block text-white/70 text-sm mb-2">
-                    Recipient Name
+                    Recipient Name{" "}
+                    {isQrScanned && (
+                      <span className="text-green-400 text-xs">
+                        (QR Scanned)
+                      </span>
+                    )}
                   </label>
                   <input
                     type="text"
                     value={paymentFormRecipient}
                     onChange={(e) => setPaymentFormRecipient(e.target.value)}
-                    className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-400 transition-colors"
+                    disabled={isQrScanned}
+                    className={`w-full backdrop-blur-sm border rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none transition-colors ${
+                      isQrScanned
+                        ? "bg-green-500/20 border-green-400/50 cursor-not-allowed"
+                        : "bg-white/10 border-white/20 focus:border-blue-400"
+                    }`}
                     placeholder="Enter recipient name"
                   />
                 </div>
 
                 <div>
                   <label className="block text-white/70 text-sm mb-2">
-                    Security Key
+                    Security Key{" "}
+                    {isQrScanned && (
+                      <span className="text-green-400 text-xs">
+                        (QR Scanned)
+                      </span>
+                    )}
                   </label>
                   <input
                     type="text"
@@ -830,37 +902,52 @@ const TapiPayMobileMVP = () => {
                     onChange={(e) =>
                       setPaymentFormAccountNumber(e.target.value)
                     }
-                    className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-400 transition-colors"
+                    disabled={isQrScanned}
+                    className={`w-full backdrop-blur-sm border rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none transition-colors ${
+                      isQrScanned
+                        ? "bg-green-500/20 border-green-400/50 cursor-not-allowed"
+                        : "bg-white/10 border-white/20 focus:border-blue-400"
+                    }`}
                     placeholder="abc1234"
                   />
                 </div>
 
                 <div>
                   <label className="block text-white/70 text-sm mb-2">
-                    Bank
+                    E-Wallet{" "}
+                    {isQrScanned && (
+                      <span className="text-green-400 text-xs">
+                        (QR Scanned)
+                      </span>
+                    )}
                   </label>
                   <select
                     value={paymentFormBank}
                     onChange={(e) => setPaymentFormBank(e.target.value)}
-                    className="w-full bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-400 transition-colors"
+                    disabled={isQrScanned}
+                    className={`w-full backdrop-blur-sm border rounded-xl px-4 py-3 text-white focus:outline-none transition-colors ${
+                      isQrScanned
+                        ? "bg-green-500/20 border-green-400/50 cursor-not-allowed"
+                        : "bg-white/10 border-white/20 focus:border-blue-400"
+                    }`}
                   >
                     <option value="" className="bg-gray-800">
-                      Select Bank
+                      Select E-Wallet
                     </option>
-                    <option value="maybank" className="bg-gray-800">
-                      Maybank
+                    <option value="grabpay" className="bg-gray-800">
+                      GrabPay
                     </option>
-                    <option value="cimb" className="bg-gray-800">
-                      CIMB Bank
+                    <option value="touchngo" className="bg-gray-800">
+                      Touch 'n Go eWallet
                     </option>
-                    <option value="public" className="bg-gray-800">
-                      Public Bank
+                    <option value="boost" className="bg-gray-800">
+                      Boost
                     </option>
-                    <option value="rhb" className="bg-gray-800">
-                      RHB Bank
+                    <option value="shopeepay" className="bg-gray-800">
+                      ShopeePay
                     </option>
-                    <option value="hong-leong" className="bg-gray-800">
-                      Hong Leong Bank
+                    <option value="bigpay" className="bg-gray-800">
+                      BigPay
                     </option>
                   </select>
                 </div>
@@ -940,11 +1027,6 @@ const TapiPayMobileMVP = () => {
                       } backdrop-blur-sm border border-white/20`}
                     >
                       <div className="font-bold">RM{amount}</div>
-                      {offlineMode && offlineDepositSystem.isActive && (
-                        <div className="text-xs opacity-75 mt-1">
-                          <div className="text-blue-300">10% deposit</div>
-                        </div>
-                      )}
                     </button>
                   );
                 })}
@@ -974,20 +1056,11 @@ const TapiPayMobileMVP = () => {
 
                         return (
                           <>
-                            <div className="flex justify-between items-center text-blue-300 text-sm">
-                              <span>Deposit Required (10%):</span>
-                              <span>
-                                RM{costBreakdown.depositRequired.toFixed(2)}
-                              </span>
-                            </div>
                             <div className="border-t border-blue-400/30 mt-3 pt-2 flex justify-between items-center text-white font-bold">
-                              <span>Total Required:</span>
+                              <span>Payment Amount:</span>
                               <span>
                                 RM{costBreakdown.totalRequired.toFixed(2)}
                               </span>
-                            </div>
-                            <div className="text-xs text-blue-200 mt-2 opacity-75">
-                              * Deposits will be returned when going back online
                             </div>
                           </>
                         );
@@ -1011,20 +1084,63 @@ const TapiPayMobileMVP = () => {
                 </div>
               )}
 
-              {/* Scan QR Button */}
-              <button
-                onClick={() => {
-                  setShowQrScanner(true);
-                  setCurrentStep("qr-scanner");
-                }}
-                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl text-base font-semibold transform transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg mb-3"
-              >
-                <div className="flex items-center justify-center">
-                  <Camera className="w-4 h-4 mr-2" />
-                  Scan QR
-                  <QrCode className="w-4 h-4 ml-2" />
-                </div>
-              </button>
+              {/* QR Action Buttons */}
+              {!isQrScanned ? (
+                <button
+                  onClick={() => {
+                    setShowQrScanner(true);
+                    setCurrentStep("qr-scanner");
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl text-base font-semibold transform transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg mb-3"
+                >
+                  <div className="flex items-center justify-center">
+                    <Camera className="w-4 h-4 mr-2" />
+                    Scan QR
+                    <QrCode className="w-4 h-4 ml-2" />
+                  </div>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsQrScanned(false);
+                    setPaymentFormRecipient("");
+                    setPaymentFormAccountNumber("");
+                    setPaymentFormBank("");
+                    setScannedData(null);
+                  }}
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-xl text-base font-semibold transform transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg mb-3"
+                >
+                  <div className="flex items-center justify-center">
+                    <svg
+                      className="w-4 h-4 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                    Clear QR Data
+                    <svg
+                      className="w-4 h-4 ml-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </div>
+                </button>
+              )}
 
               {/* Proceed Button */}
               <button
@@ -1080,8 +1196,10 @@ const TapiPayMobileMVP = () => {
         totalDeposits: offlineDepositSystem.totalDeposits,
       };
 
-      const remainingBalance = displayResult.remainingBalance || offlineDepositSystem.availableBalance;
-      const totalDeposits = displayResult.totalDeposits || offlineDepositSystem.totalDeposits;
+      const remainingBalance =
+        displayResult.remainingBalance || offlineDepositSystem.availableBalance;
+      const totalDeposits =
+        displayResult.totalDeposits || offlineDepositSystem.totalDeposits;
 
       return (
         <div className="w-full h-full relative">
@@ -1141,81 +1259,13 @@ const TapiPayMobileMVP = () => {
                       {paymentRecipient || "Recipient"}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/70 text-sm">Security</span>
-                    <span className="text-green-300 flex items-center text-sm text-right">
-                      <Shield className="w-4 h-4 mr-1 flex-shrink-0" />
-                      <span className="whitespace-nowrap">
-                        {!isOnline
-                          ? authData?.method === "Face Recognition"
-                            ? "Offline Face + Behavioral + Crypto"
-                            : "Offline Behavioral + Crypto"
-                          : authData?.method === "Face Recognition"
-                          ? "Face + Behavioral + Quantum"
-                          : "Behavioral + Quantum"}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/70 text-sm">
-                      Behavioral Score
-                    </span>
-                    <span className="text-blue-300 text-sm">
-                      {getBehavioralSummary().keystrokeCount +
-                        getBehavioralSummary().touchCount >
-                      10
-                        ? "High"
-                        : "Medium"}{" "}
-                      Confidence
-                    </span>
-                  </div>
+
                   {!isOnline && offlineDepositSystem.isActive && (
                     <>
-                      <div className="border-t border-white/20 pt-3 mt-3">
-                        <div className="text-blue-300 text-sm font-medium mb-2">
-                          Payment Summary
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-white/70 text-sm">
-                              Available Balance:
-                            </span>
-                            <span className="text-blue-300 text-sm font-bold">
-                              RM{offlineDepositSystem.availableBalance.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-white/70 text-sm">
-                              Total Deposits:
-                            </span>
-                            <span className="text-yellow-300 text-sm font-bold">
-                              RM{offlineDepositSystem.totalDeposits.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="border-t border-white/20 pt-2 mt-2">
-                            {(() => {
-                              const amount = parseFloat(paymentAmount || 0);
-                              const depositRequired = amount * 0.1;
-                              return (
-                                <>
-                                  <div className="text-green-300 text-xs">
-                                    ✨ Deposit required (10%): RM{depositRequired.toFixed(2)}
-                                  </div>
-                                  <div className="text-yellow-300 text-xs">
-                                    💰 Deposits will be returned when going back online
-                                  </div>
-                                </>
-                              );
-                            })()} 
-                          </div>
-                        </div>
-                      </div>
                       <div className="flex justify-between items-center mt-3">
-                        <span className="text-white/70 text-sm">
-                          Transaction ID:
-                        </span>
+                        <span className="text-white/70 text-sm">Token ID:</span>
                         <span className="text-blue-300 text-xs font-mono">
-                          {`DEP_${Date.now().toString().slice(-6)}...`}
+                          {`PAY_${Date.now().toString().slice(-6)}...`}
                         </span>
                       </div>
                     </>
@@ -1241,6 +1291,15 @@ const TapiPayMobileMVP = () => {
                   // Reset payment processing state for new transaction
                   setPaymentResult(null);
                   paymentProcessedRef.current = false;
+
+                  // Clear signature for new payment
+                  setSignatureData(null);
+                  setSignatureComplete(false);
+                  setIsDrawing(false);
+
+                  // Reset QR scanned state for new transfer
+                  setIsQrScanned(false);
+                  setScannedData(null);
 
                   setCurrentStep("transfer");
                   setPaymentFormRecipient("");
@@ -1336,7 +1395,7 @@ const TapiPayMobileMVP = () => {
                   </h3>
                   <div className="space-y-1 text-sm text-white/70">
                     <div>Account: {userProfile.accountNumber}</div>
-                    <div>Bank: {userProfile.bank.toUpperCase()}</div>
+                    <div>E-Wallet: {userProfile.bank.toUpperCase()}</div>
                     <div>Security Key: {userProfile.securityKey}</div>
                   </div>
                 </div>
@@ -1355,8 +1414,8 @@ const TapiPayMobileMVP = () => {
                     className="bg-white rounded-xl p-4 mb-4 mx-auto"
                     style={{ width: "fit-content" }}
                   >
-                    <QRCodeSVG 
-                      value={qrString} 
+                    <QRCodeSVG
+                      value={qrString}
                       size={200}
                       bgColor="#ffffff"
                       fgColor="#000000"
@@ -1519,6 +1578,163 @@ const TapiPayMobileMVP = () => {
       );
     };
 
+    // Render Signature Page (offline only)
+    const renderSignaturePage = () => {
+      return (
+        <div className="w-full h-full relative">
+          {/* Fixed gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-green-600"></div>
+
+          <OfflineIndicator />
+
+          <div className="relative z-10 p-6 h-full flex flex-col text-white overflow-y-auto">
+            <div className="h-6"></div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <Shield className="w-6 h-6 text-white mr-2" />
+                <h2 className="text-lg font-bold text-white">
+                  Digital Signature Required
+                </h2>
+              </div>
+            </div>
+
+            {/* Signature Instructions */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 mb-6">
+              <h3 className="text-lg font-semibold text-white mb-3">
+                Please provide your signature
+              </h3>
+              <p className="text-white/80 text-sm mb-4">
+                For offline payments, we require a digital signature to complete
+                the transaction securely.
+              </p>
+
+              {/* Payment Summary */}
+              <div className="bg-white/5 rounded-xl p-4 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-white/70 text-sm">Payment Amount:</span>
+                  <span className="text-white font-semibold">
+                    RM {paymentAmount}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-white/70 text-sm">Recipient:</span>
+                  <span className="text-white font-semibold">
+                    {paymentFormRecipient || "N/A"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/70 text-sm">Authentication:</span>
+                  <span className="text-green-400 font-semibold">
+                    {authData?.method || "Verified"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Signature Canvas */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 mb-6 flex-1">
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="text-white font-semibold">
+                  Draw your signature below:
+                </h4>
+                <button
+                  onClick={clearSignature}
+                  className="text-white/70 hover:text-white text-sm underline transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+
+              {/* Signature Drawing Area */}
+              <div
+                className="bg-white rounded-xl h-32 border-2 border-dashed border-gray-300 cursor-crosshair relative overflow-hidden"
+                onMouseDown={handleSignatureStart}
+                onMouseUp={handleSignatureEnd}
+                onMouseMove={handleSignatureDraw}
+                onTouchStart={handleSignatureStart}
+                onTouchEnd={handleSignatureEnd}
+                onTouchMove={(e) => {
+                  e.preventDefault();
+                  const touch = e.touches[0];
+                  const mouseEvent = {
+                    target: e.target,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                  };
+                  handleSignatureDraw(mouseEvent);
+                }}
+              >
+                {!signatureData || signatureData.length === 0 ? (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
+                    Click and drag to sign
+                  </div>
+                ) : (
+                  <div className="absolute inset-0">
+                    {/* Simple signature visualization */}
+                    <svg className="w-full h-full">
+                      {signatureData.map((point, index) => {
+                        if (index === 0) return null;
+                        const prevPoint = signatureData[index - 1];
+                        return (
+                          <line
+                            key={index}
+                            x1={prevPoint.x}
+                            y1={prevPoint.y}
+                            x2={point.x}
+                            y2={point.y}
+                            stroke="#1f2937"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                        );
+                      })}
+                    </svg>
+                  </div>
+                )}
+              </div>
+
+              {/* Signature Status */}
+              <div className="mt-4 text-center">
+                {signatureData && signatureData.length > 10 ? (
+                  <div className="text-green-400 text-sm flex items-center justify-center">
+                    <Check className="w-4 h-4 mr-1" />
+                    Signature captured
+                  </div>
+                ) : (
+                  <div className="text-white/60 text-sm">
+                    Please draw your signature above
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-4">
+              <button
+                onClick={clearSignature}
+                className="flex-1 bg-white/10 hover:bg-white/20 text-white py-3 px-6 rounded-xl font-semibold transition-all duration-200 border border-white/20"
+              >
+                Clear Signature
+              </button>
+              <button
+                onClick={completeSignature}
+                disabled={!signatureData || signatureData.length <= 10}
+                className={`flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-200 ${
+                  signatureData && signatureData.length > 10
+                    ? "bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white shadow-lg"
+                    : "bg-gray-500/50 text-gray-300 cursor-not-allowed"
+                }`}
+              >
+                Complete Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     // Main render logic
     console.log("🔍 TapiPay Render Debug:", {
       currentStep,
@@ -1548,6 +1764,7 @@ const TapiPayMobileMVP = () => {
                   skipDemo={true}
                 />
               )}
+              {currentStep === "signature" && renderSignaturePage()}
               {currentStep === "success" && renderSuccess()}
             </div>
           </div>
